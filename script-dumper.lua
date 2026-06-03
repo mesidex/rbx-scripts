@@ -1,36 +1,42 @@
-local containers = {
-    game.ReplicatedStorage,
-    game.ReplicatedFirst,
-    game.StarterGui,
-    game.StarterPlayer,
-    game.StarterPack,
-    game.Lighting,
+-- if in autoexec
+if not game:IsLoaded() then game.Loaded:Wait() end
+
+local root = "dump_" .. game.GameId
+if not isfolder(root) then makefolder(root) end
+
+local services = {
+  game:GetService("ReplicatedStorage"),
+  game:GetService("ReplicatedFirst"),
+  game:GetService("Lighting"),
+  game:GetService("StarterGui"),
+  game:GetService("StarterPlayer"),
+  game:GetService("StarterPack"),
 }
 
-local dump_path = "dump_" .. game.GameId
-makefolder(dump_path)
+local dirs_cache = {}
 
-local made = {}
+local rs = game:GetService("RunService")
+rs:Pause()
+rs:Set3dRenderingEnabled(false)
 
-for _, container in containers do
-  for _, obj in container:GetDescendants() do
-    if obj:IsA("LocalScript") or obj:IsA("ModuleScript") then
-      local ok, source = pcall(decompile, obj)
-      if ok and source and #source > 0 then
-        local parts = dump_path .. "/" .. obj:GetFullName():gsub("%.", "/")
-        local dir = parts:match("(.+)/[^/]+$")
-        if not made[dir] then
-          local current = ""
-          for part in dir:gmatch("[^/]+") do
-            current = current == "" and part or (current .. "/" .. part)
-            if not made[current] then
-              makefolder(current)
-              made[current] = true
-            end
-          end
-        end
-        writefile(parts .. ".lua", source)
-      end
+print("[!] Starting to dump")
+for _, svc in services do
+  for _, scr in svc:QueryDescendants("LocalScript, ModuleScript") do
+    local ok, src = pcall(decompile, scr)
+    if not (ok and src and #src > 0) then continue end
+
+    local fpath = root .. "/" .. scr:GetFullName():gsub("%.", "/")
+    local dir = fpath:match("(.+)/[^/]+$")
+    if not dirs_cache[dir] then
+      makefolder(dir)
+      dirs_cache[dir] = true
     end
+
+    local prefix = "-- " .. fpath .. "\n"
+    writefile(fpath .. ".lua", prefix .. src)
   end
 end
+print("[!] Dump done -> " .. root)
+
+rs:Run()
+rs:Set3dRenderingEnabled(true)
